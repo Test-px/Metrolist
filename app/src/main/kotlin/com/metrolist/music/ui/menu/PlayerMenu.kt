@@ -5,7 +5,7 @@
 
 package com.metrolist.music.ui.menu
 
-import android.content.Context
+impoPlayerMenurt android.content.Context
 import android.content.Intent
 import android.media.audiofx.AudioEffect
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -120,630 +120,333 @@ fun PlayerMenu(
     val playerConnection = LocalPlayerConnection.current ?: return
     val playerVolume = playerConnection.service.playerVolume.collectAsStateWithLifecycle()
 
-    // Cast state for volume control - safely access castConnectionHandler to prevent crashes
-    val castHandler =
-        remember(playerConnection) {
-            try {
-                playerConnection.service.castConnectionHandler
-            } catch (e: Exception) {
-                null
-            }
-        }
+    // Cast state
+    val castHandler = remember(playerConnection) { runCatching { playerConnection.service.castConnectionHandler }.getOrNull() }
     val isCasting by castHandler?.isCasting?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
     val castVolume by castHandler?.castVolume?.collectAsStateWithLifecycle() ?: remember { mutableFloatStateOf(1f) }
     val castDeviceName by castHandler?.castDeviceName?.collectAsStateWithLifecycle() ?: remember { mutableStateOf<String?>(null) }
 
     val varispeedMode by rememberPreference(VarispeedKey, defaultValue = false)
-
     val librarySong by database.song(mediaMetadata.id).collectAsStateWithLifecycle(initialValue = null)
     val coroutineScope = rememberCoroutineScope()
     val downloadUtil = LocalDownloadUtil.current
-
-    val download by downloadUtil
-        .getDownload(mediaMetadata.id)
-        .collectAsStateWithLifecycle(initialValue = null)
-
+    val download by downloadUtil.getDownload(mediaMetadata.id).collectAsStateWithLifecycle(initialValue = null)
     val isPinned by database.speedDialDao.isPinned(mediaMetadata.id).collectAsStateWithLifecycle(initialValue = false)
+    val artists = remember(mediaMetadata.artists) { mediaMetadata.artists.filter { it.id != null } }
 
-    val artists =
-        remember(mediaMetadata.artists) {
-            mediaMetadata.artists.filter { it.id != null }
-        }
-
-    var showChoosePlaylistDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
-
-    var showListenTogetherDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
+    var showChoosePlaylistDialog by rememberSaveable { mutableStateOf(false) }
+    var showListenTogetherDialog by rememberSaveable { mutableStateOf(false) }
+    var showSelectArtistDialog by rememberSaveable { mutableStateOf(false) }
+    var showPitchTempoDialog by rememberSaveable { mutableStateOf(false) }
+    var showSpeedDialog by rememberSaveable { mutableStateOf(false) }
 
     val listenTogetherManager = LocalListenTogetherManager.current
     val listenTogetherRoleState = listenTogetherManager?.role?.collectAsStateWithLifecycle(initialValue = com.metrolist.music.listentogether.RoomRole.NONE)
     val isListenTogetherGuest = listenTogetherRoleState?.value == com.metrolist.music.listentogether.RoomRole.GUEST
-    val pendingSuggestions by listenTogetherManager?.pendingSuggestions?.collectAsStateWithLifecycle(initialValue = emptyList())
-        ?: remember { mutableStateOf(emptyList()) }
+    val pendingSuggestions by listenTogetherManager?.pendingSuggestions?.collectAsStateWithLifecycle(initialValue = emptyList()) ?: remember { mutableStateOf(emptyList()) }
 
-    val systemEqLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { }
+    val systemEqLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
 
+    // Keep existing dialogs alive in the background
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
         onGetSong = { playlist ->
-            database.withTransaction {
-                insert(mediaMetadata)
-            }
-            coroutineScope.launch(Dispatchers.IO) {
-                playlist.playlist.browseId?.let { YouTube.addToPlaylist(it, mediaMetadata.id) }
-            }
+            database.withTransaction { insert(mediaMetadata) }
+            coroutineScope.launch(Dispatchers.IO) { playlist.playlist.browseId?.let { YouTube.addToPlaylist(it, mediaMetadata.id) } }
             listOf(mediaMetadata.id)
         },
         onGetSongIds = { listOf(mediaMetadata.id) },
-        onDismiss = {
-            showChoosePlaylistDialog = false
-        },
+        onDismiss = { showChoosePlaylistDialog = false },
     )
 
-    ListenTogetherDialog(
-        visible = showListenTogetherDialog,
-        mediaMetadata = mediaMetadata,
-        onDismiss = { showListenTogetherDialog = false },
-    )
-
-    var showSelectArtistDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
+    ListenTogetherDialog(visible = showListenTogetherDialog, mediaMetadata = mediaMetadata, onDismiss = { showListenTogetherDialog = false })
 
     if (showSelectArtistDialog) {
-        ListDialog(
-            onDismiss = { showSelectArtistDialog = false },
-        ) {
+        ListDialog(onDismiss = { showSelectArtistDialog = false }) {
             items(artists) { artist ->
                 Box(
                     contentAlignment = Alignment.CenterStart,
-                    modifier =
-                        Modifier
-                            .fillParentMaxWidth()
-                            .height(ListItemHeight)
-                            .clickable {
-                                navController.navigate("artist/${artist.id}")
-                                showSelectArtistDialog = false
-                                playerBottomSheetState.collapseSoft()
-                                onDismiss()
-                            }.padding(horizontal = 24.dp),
-                ) {
-                    Text(
-                        text = artist.name,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                    modifier = Modifier
+                        .fillParentMaxWidth()
+                        .height(ListItemHeight)
+                        .clickable {
+                            navController.navigate("artist/${artist.id}")
+                            showSelectArtistDialog = false
+                            playerBottomSheetState.collapseSoft()
+                            onDismiss()
+                        }.padding(horizontal = 24.dp),
+                ) { Text(text = artist.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
         }
     }
 
-    var showPitchTempoDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
+    if (showPitchTempoDialog) TempoPitchDialog(onDismiss = { showPitchTempoDialog = false })
+    if (showSpeedDialog) SpeedDialog(onDismiss = { showSpeedDialog = false })
 
-    if (showPitchTempoDialog) {
-        TempoPitchDialog(
-            onDismiss = { showPitchTempoDialog = false },
-        )
-    }
-
-    var showSpeedDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
-
-    if (showSpeedDialog) {
-        SpeedDialog(
-            onDismiss = { showSpeedDialog = false },
-        )
-    }
-
-    if (isQueueTrigger != true) {
-        Column(
-            modifier =
-                Modifier
+    // --- PIXEL MUSIC STYLED MENU ---
+    LazyColumn(
+        contentPadding = PaddingValues(bottom = 16.dp + WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // 1. Pixel Music Header
+        item {
+            Row(
+                modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(top = 24.dp, bottom = 6.dp),
-        ) {
-            // Show Cast indicator when casting
-            if (isCasting && castDeviceName != null) {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp),
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Icon(
-                        painter = painterResource(R.drawable.cast),
+                    coil3.compose.AsyncImage(
+                        model = mediaMetadata.thumbnailUrl,
                         contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.primary,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.casting_to, castDeviceName ?: ""),
+                        text = mediaMetadata.title,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = mediaMetadata.artists.joinToString { it.name },
+                        fontWeight = FontWeight.Medium,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
+        }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                VolumeSlider(
-                    value = if (isCasting) castVolume else playerVolume.value,
-                    onValueChange = { volume ->
-                        if (isCasting) {
-                            castHandler?.setVolume(volume)
-                        } else {
-                            playerConnection.service.playerVolume.value = volume
+        // 2. Volume Slider
+        if (isQueueTrigger != true) {
+            item {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
+                    if (isCasting && castDeviceName != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+                            Icon(painterResource(R.drawable.cast), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.casting_to, castDeviceName!!), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
                         }
-                    },
-                    modifier = Modifier.weight(1f),
-                    accentColor = MaterialTheme.colorScheme.primary,
+                    }
+                    VolumeSlider(
+                        value = if (isCasting) castVolume else playerVolume.value,
+                        onValueChange = { if (isCasting) castHandler?.setVolume(it) else playerConnection.service.playerVolume.value = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        accentColor = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+
+        // 3. Flagship Action: Start Radio
+        if (!isListenTogetherGuest) {
+            item {
+                PixelMenuItem(
+                    icon = R.drawable.radio,
+                    title = stringResource(R.string.start_radio),
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    iconContainerColor = MaterialTheme.colorScheme.primary,
+                    iconTintColor = MaterialTheme.colorScheme.onPrimary,
+                    onClick = {
+                        Toast.makeText(context, R.string.starting_radio, Toast.LENGTH_SHORT).show()
+                        playerConnection.startRadioSeamlessly()
+                        onDismiss()
+                    }
                 )
             }
         }
+
+        // 4. Primary Actions
+        item {
+            PixelMenuItem(icon = R.drawable.playlist_add, title = stringResource(R.string.add_to_playlist), onClick = { showChoosePlaylistDialog = true })
+        }
+
+        item {
+            PixelMenuItem(
+                icon = R.drawable.link,
+                title = stringResource(R.string.copy_link),
+                onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Song Link", "https://music.youtube.com/watch?v=${mediaMetadata.id}"))
+                    Toast.makeText(context, R.string.link_copied, Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                }
+            )
+        }
+
+        item {
+            when (download?.state) {
+                Download.STATE_COMPLETED -> {
+                    PixelMenuItem(icon = R.drawable.offline, title = stringResource(R.string.remove_download), onClick = { DownloadService.sendRemoveDownload(context, ExoDownloadService::class.java, mediaMetadata.id, false) })
+                }
+                Download.STATE_QUEUED, Download.STATE_DOWNLOADING -> {
+                    PixelMenuItem(icon = R.drawable.download, title = stringResource(R.string.downloading), trailingContent = { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) }, onClick = { DownloadService.sendRemoveDownload(context, ExoDownloadService::class.java, mediaMetadata.id, false) })
+                }
+                else -> {
+                    PixelMenuItem(icon = R.drawable.download, title = stringResource(R.string.action_download), onClick = { downloadUtil.download(mediaMetadata) })
+                }
+            }
+        }
+
+        item { Spacer(Modifier.height(8.dp)); HorizontalDivider(Modifier.padding(horizontal = 24.dp), color = MaterialTheme.colorScheme.surfaceVariant); Spacer(Modifier.height(8.dp)) }
+
+        // 5. Listen Together Integration
+        item {
+            PixelMenuItem(
+                icon = R.drawable.group,
+                title = stringResource(R.string.listen_together),
+                trailingContent = if (pendingSuggestions.isNotEmpty()) {
+                    { Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primary) { Text(pendingSuggestions.size.toString(), color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall) } }
+                } else null,
+                onClick = { showListenTogetherDialog = true }
+            )
+        }
+        
+        if (isListenTogetherGuest) {
+            item { PixelMenuItem(icon = R.drawable.replay, title = stringResource(R.string.resync), onClick = { listenTogetherManager.requestSync(); onDismiss() }) }
+        }
+
+        // 6. Navigation (Artist / Album)
+        val isPodcast = mediaMetadata.album?.let { !it.id.startsWith("MPREb_") } ?: false
+        if (artists.isNotEmpty() && !isPodcast) {
+            item {
+                PixelMenuItem(
+                    icon = R.drawable.artist,
+                    title = stringResource(R.string.view_artist),
+                    onClick = {
+                        if (mediaMetadata.artists.size == 1) {
+                            navController.navigate("artist/${mediaMetadata.artists[0].id}")
+                            playerBottomSheetState.collapseSoft()
+                            onDismiss()
+                        } else showSelectArtistDialog = true
+                    }
+                )
+            }
+        }
+        if (mediaMetadata.album != null) {
+            item {
+                PixelMenuItem(
+                    icon = if (isPodcast) R.drawable.mic else R.drawable.album,
+                    title = stringResource(if (isPodcast) R.string.view_podcast else R.string.view_album),
+                    onClick = {
+                        if (isPodcast) navController.navigate("online_podcast/${mediaMetadata.album.id}") else navController.navigate("album/${mediaMetadata.album.id}")
+                        playerBottomSheetState.collapseSoft()
+                        onDismiss()
+                    }
+                )
+            }
+        }
+
+        // 7. Library & Speed Dial
+        item {
+            val isInLibrary = librarySong?.song?.inLibrary != null
+            PixelMenuItem(icon = if (isInLibrary) R.drawable.library_add_check else R.drawable.library_add, title = stringResource(if (isInLibrary) R.string.remove_from_library else R.string.add_to_library), onClick = { playerConnection.toggleLibrary(); onDismiss() })
+        }
+        item {
+            PixelMenuItem(
+                icon = if (isPinned) R.drawable.remove else R.drawable.add,
+                title = stringResource(if (isPinned) R.string.unpin_from_speed_dial else R.string.pin_to_speed_dial),
+                onClick = {
+                    coroutineScope.launch(Dispatchers.IO) {
+                        if (isPinned) database.speedDialDao.delete(mediaMetadata.id) else database.speedDialDao.insert(SpeedDialItem.fromYTItem(mediaMetadata.toYTItem()))
+                    }
+                    onDismiss()
+                }
+            )
+        }
+
+        item { Spacer(Modifier.height(8.dp)); HorizontalDivider(Modifier.padding(horizontal = 24.dp), color = MaterialTheme.colorScheme.surfaceVariant); Spacer(Modifier.height(8.dp)) }
+
+        // 8. Advanced Metrolist Features (Equalizer / Tuning)
+        if (isQueueTrigger != true) {
+            item { PixelMenuItem(icon = R.drawable.equalizer, title = stringResource(R.string.equalizer), onClick = { navController.navigate("equalizer"); onDismiss() }) }
+            item {
+                PixelMenuItem(
+                    icon = R.drawable.graphic_eq,
+                    title = stringResource(R.string.system_equalizer),
+                    onClick = {
+                        val audioSessionId = playerConnection.player.audioSessionId
+                        if (audioSessionId != C.AUDIO_SESSION_ID_UNSET && audioSessionId > 0) {
+                            val intent = Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
+                                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, audioSessionId)
+                                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
+                                putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
+                            }
+                            if (intent.resolveActivity(context.packageManager) != null) systemEqLauncher.launch(intent)
+                        }
+                        onDismiss()
+                    }
+                )
+            }
+            item { PixelMenuItem(icon = R.drawable.tune, title = stringResource(R.string.advanced), onClick = { if (!varispeedMode) showPitchTempoDialog = true else showSpeedDialog = true }) }
+        }
+
+        // 9. Details
+        item { PixelMenuItem(icon = R.drawable.info, title = stringResource(R.string.details), onClick = { onShowDetailsDialog(); onDismiss() }) }
     }
+}
 
-    Spacer(modifier = Modifier.height(20.dp))
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    val configuration = LocalConfiguration.current
-    val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-
-    LazyColumn(
-        contentPadding =
-            PaddingValues(
-                start = 0.dp,
-                top = 0.dp,
-                end = 0.dp,
-                bottom = 8.dp + WindowInsets.systemBars.asPaddingValues().calculateBottomPadding(),
-            ),
-    ) {
-        item {
-            val startingRadioText = stringResource(R.string.starting_radio)
-            NewActionGrid(
-                actions =
-                    listOfNotNull(
-                        if (!isListenTogetherGuest) {
-                            NewAction(
-                                icon = {
-                                    Icon(
-                                        painter = painterResource(R.drawable.radio),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(32.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                },
-                                text = stringResource(R.string.start_radio),
-                                onClick = {
-                                    Toast.makeText(context, startingRadioText, Toast.LENGTH_SHORT).show()
-                                    playerConnection.startRadioSeamlessly()
-                                    onDismiss()
-                                },
-                            )
-                        } else {
-                            null
-                        },
-                        NewAction(
-                            icon = {
-                                Icon(
-                                    painter = painterResource(R.drawable.playlist_add),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(32.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                            text = stringResource(R.string.add_to_playlist),
-                            onClick = { showChoosePlaylistDialog = true },
-                        ),
-                        NewAction(
-                            icon = {
-                                Icon(
-                                    painter = painterResource(R.drawable.link),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(32.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                            text = stringResource(R.string.copy_link),
-                            onClick = {
-                                val clipboard =
-                                    context.getSystemService(
-                                        android.content.Context.CLIPBOARD_SERVICE,
-                                    ) as android.content.ClipboardManager
-                                val clip =
-                                    android.content.ClipData.newPlainText(
-                                        "Song Link",
-                                        "https://music.youtube.com/watch?v=${mediaMetadata.id}",
-                                    )
-                                clipboard.setPrimaryClip(clip)
-                                android.widget.Toast
-                                    .makeText(context, R.string.link_copied, android.widget.Toast.LENGTH_SHORT)
-                                    .show()
-                                onDismiss()
-                            },
-                        ),
-                    ),
-                columns = if (isListenTogetherGuest) 2 else 3,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+// Reusable Helper Component for the Pixel Music aesthetic
+@Composable
+private fun PixelMenuItem(
+    @DrawableRes icon: Int,
+    title: String,
+    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
+    contentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface,
+    iconContainerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surfaceVariant,
+    iconTintColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    trailingContent: @Composable (() -> Unit)? = null,
+    onClick: () -> Unit
+) {
+    androidx.compose.material3.ListItem(
+        modifier = Modifier
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
+        colors = androidx.compose.material3.ListItemDefaults.colors(
+            containerColor = containerColor
+        ),
+        headlineContent = {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Medium,
+                color = contentColor
             )
-        }
-
-        item {
-            // Check if this is a podcast episode (album ID doesn't start with MPREb_)
-            val isPodcast = mediaMetadata.album?.let { !it.id.startsWith("MPREb_") } ?: false
-
-            Material3MenuGroup(
-                items =
-                    buildList {
-                        // Don't show "View Artist" for podcasts - only show "View Podcast"
-                        if (artists.isNotEmpty() && !isPodcast) {
-                            add(
-                                Material3MenuItemData(
-                                    title = { Text(text = stringResource(R.string.view_artist)) },
-                                    description = {
-                                        Text(
-                                            text = mediaMetadata.artists.joinToString { it.name },
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    },
-                                    icon = {
-                                        Icon(
-                                            painter = painterResource(R.drawable.artist),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                    },
-                                    onClick = {
-                                        if (mediaMetadata.artists.size == 1) {
-                                            navController.navigate("artist/${mediaMetadata.artists[0].id}")
-                                            playerBottomSheetState.collapseSoft()
-                                            onDismiss()
-                                        } else {
-                                            showSelectArtistDialog = true
-                                        }
-                                    },
-                                ),
-                            )
-                        }
-                        if (mediaMetadata.album != null) {
-                            add(
-                                Material3MenuItemData(
-                                    title = { Text(text = stringResource(if (isPodcast) R.string.view_podcast else R.string.view_album)) },
-                                    description = {
-                                        Text(
-                                            text = mediaMetadata.album.title,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    },
-                                    icon = {
-                                        Icon(
-                                            painter = painterResource(if (isPodcast) R.drawable.mic else R.drawable.album),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                    },
-                                    onClick = {
-                                        if (isPodcast) {
-                                            navController.navigate("online_podcast/${mediaMetadata.album.id}")
-                                        } else {
-                                            navController.navigate("album/${mediaMetadata.album.id}")
-                                        }
-                                        playerBottomSheetState.collapseSoft()
-                                        onDismiss()
-                                    },
-                                ),
-                            )
-                        }
-                        // Add to Library option
-                        val isInLibrary = librarySong?.song?.inLibrary != null
-                        add(
-                            Material3MenuItemData(
-                                title = {
-                                    Text(
-                                        text =
-                                            stringResource(
-                                                if (isInLibrary) {
-                                                    R.string.remove_from_library
-                                                } else {
-                                                    R.string.add_to_library
-                                                },
-                                            ),
-                                    )
-                                },
-                                icon = {
-                                    Icon(
-                                        painter =
-                                            painterResource(
-                                                if (isInLibrary) {
-                                                    R.drawable.library_add_check
-                                                } else {
-                                                    R.drawable.library_add
-                                                },
-                                            ),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(24.dp),
-                                    )
-                                },
-                                onClick = {
-                                    playerConnection.toggleLibrary()
-                                    onDismiss()
-                                },
-                            ),
-                        )
-                        add(
-                            Material3MenuItemData(
-                                title = {
-                                    Text(
-                                        text = if (isPinned) stringResource(R.string.unpin_from_speed_dial) else stringResource(R.string.pin_to_speed_dial),
-                                    )
-                                },
-                                icon = {
-                                    Icon(
-                                        painter = painterResource(if (isPinned) R.drawable.remove else R.drawable.add),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(24.dp),
-                                    )
-                                },
-                                onClick = {
-                                    coroutineScope.launch(Dispatchers.IO) {
-                                        if (isPinned) {
-                                            database.speedDialDao.delete(mediaMetadata.id)
-                                        } else {
-                                            database.speedDialDao.insert(SpeedDialItem.fromYTItem(mediaMetadata.toYTItem()))
-                                        }
-                                    }
-                                    onDismiss()
-                                },
-                            ),
-                        )
-                    },
-            )
-        }
-
-        item { Spacer(modifier = Modifier.height(12.dp)) }
-
-        item {
-            Material3MenuGroup(
-                items =
-                    listOf(
-                        when (download?.state) {
-                            Download.STATE_COMPLETED -> {
-                                Material3MenuItemData(
-                                    title = {
-                                        Text(
-                                            text = stringResource(R.string.remove_download),
-                                        )
-                                    },
-                                    icon = {
-                                        Icon(
-                                            painter = painterResource(R.drawable.offline),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                    },
-                                    onClick = {
-                                        DownloadService.sendRemoveDownload(
-                                            context,
-                                            ExoDownloadService::class.java,
-                                            mediaMetadata.id,
-                                            false,
-                                        )
-                                    },
-                                )
-                            }
-
-                            Download.STATE_QUEUED, Download.STATE_DOWNLOADING -> {
-                                Material3MenuItemData(
-                                    title = { Text(text = stringResource(R.string.downloading)) },
-                                    icon = {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(24.dp),
-                                            strokeWidth = 2.dp,
-                                        )
-                                    },
-                                    onClick = {
-                                        DownloadService.sendRemoveDownload(
-                                            context,
-                                            ExoDownloadService::class.java,
-                                            mediaMetadata.id,
-                                            false,
-                                        )
-                                    },
-                                )
-                            }
-
-                            else -> {
-                                Material3MenuItemData(
-                                    title = { Text(text = stringResource(R.string.action_download)) },
-                                    icon = {
-                                        Icon(
-                                            painter = painterResource(R.drawable.download),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                    },
-                                    onClick = {
-                                        downloadUtil.download(mediaMetadata)
-                                    },
-                                )
-                            }
-                        },
-                    ),
-            )
-        }
-
-        item { Spacer(modifier = Modifier.height(12.dp)) }
-
-        item {
-            Material3MenuGroup(
-                items =
-                    buildList {
-                        add(
-                            Material3MenuItemData(
-                                title = { Text(text = stringResource(R.string.listen_together)) },
-                                icon = {
-                                    // Show a small badge when there are pending suggestions
-                                    Box {
-                                        Icon(
-                                            painter = painterResource(R.drawable.group),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                        if (pendingSuggestions.isNotEmpty()) {
-                                            Surface(
-                                                shape = RoundedCornerShape(12.dp),
-                                                color = MaterialTheme.colorScheme.primary,
-                                                modifier =
-                                                    Modifier
-                                                        .offset(x = 8.dp, y = (-6).dp)
-                                                        .align(Alignment.TopEnd),
-                                            ) {
-                                                Text(
-                                                    text = pendingSuggestions.size.toString(),
-                                                    color = MaterialTheme.colorScheme.onPrimary,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                )
-                                            }
-                                        }
-                                    }
-                                },
-                                onClick = { showListenTogetherDialog = true },
-                            ),
-                        )
-                        if (isListenTogetherGuest) {
-                            add(
-                                Material3MenuItemData(
-                                    title = { Text(text = stringResource(R.string.resync)) },
-                                    icon = {
-                                        Icon(
-                                            painter = painterResource(R.drawable.replay),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                    },
-                                    onClick = {
-                                        listenTogetherManager.requestSync()
-                                        onDismiss()
-                                    },
-                                ),
-                            )
-                        }
-                    },
-            )
-        }
-
-        item { Spacer(modifier = Modifier.height(12.dp)) }
-
-        item {
-            Material3MenuGroup(
-                items =
-                    buildList {
-                        add(
-                            Material3MenuItemData(
-                                title = { Text(text = stringResource(R.string.details)) },
-                                description = { Text(text = stringResource(R.string.details_desc)) },
-                                icon = {
-                                    Icon(
-                                        painter = painterResource(R.drawable.info),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(24.dp),
-                                    )
-                                },
-                                onClick = {
-                                    onShowDetailsDialog()
-                                    onDismiss()
-                                },
-                            ),
-                        )
-
-                        if (isQueueTrigger != true) {
-                            add(
-                                Material3MenuItemData(
-                                    title = { Text(text = stringResource(R.string.equalizer)) },
-                                    description = { Text(text = stringResource(R.string.equalizer_desc)) },
-                                    icon = {
-                                        Icon(
-                                            painter = painterResource(R.drawable.equalizer),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                    },
-                                    onClick = {
-                                        navController.navigate("equalizer")
-                                        onDismiss()
-                                    },
-                                ),
-                            )
-                            add(
-                                Material3MenuItemData(
-                                    title = { Text(text = stringResource(R.string.system_equalizer)) },
-                                    description = { Text(text = stringResource(R.string.system_equalizer_desc)) },
-                                    icon = {
-                                        Icon(
-                                            painter = painterResource(R.drawable.graphic_eq),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                    },
-                                    onClick = {
-                                        val audioSessionId = playerConnection.player.audioSessionId
-                                        if (audioSessionId != C.AUDIO_SESSION_ID_UNSET && audioSessionId > 0) {
-                                            val intent = Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
-                                                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, audioSessionId)
-                                                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
-                                                putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
-                                            }
-                                            if (intent.resolveActivity(context.packageManager) != null) {
-                                                systemEqLauncher.launch(intent)
-                                            }
-                                        }
-                                        onDismiss()
-                                    },
-                                ),
-                            )
-                            add(
-                                Material3MenuItemData(
-                                    title = { Text(text = stringResource(R.string.advanced)) },
-                                    description = { Text(text = stringResource(R.string.advanced_desc)) },
-                                    icon = {
-                                        Icon(
-                                            painter = painterResource(R.drawable.tune),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                    },
-                                    onClick = {
-                                        if (!varispeedMode) showPitchTempoDialog = true
-                                        else showSpeedDialog = true
-                                    },
-                                ),
-                            )
-                        }
-                    },
-            )
-        }
-    }
+        },
+        leadingContent = {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(iconContainerColor, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    tint = iconTintColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        },
+        trailingContent = trailingContent
+    )
 }
 
 @Composable
@@ -1852,6 +1555,248 @@ fun ListenTogetherDialog(
                     modifier =
                         Modifier
                             .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.listen_together_description),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+
+                        OutlinedTextField(
+                            value = usernameInput,
+                            onValueChange = { usernameInput = it },
+                            label = { Text(stringResource(R.string.username)) },
+                            placeholder = { Text(stringResource(R.string.enter_username)) },
+                            leadingIcon = {
+                                Icon(
+                                    painterResource(R.drawable.person),
+                                    null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            },
+                            trailingIcon = {
+                                if (usernameInput.isNotBlank()) {
+                                    IconButton(onClick = { usernameInput = "" }) {
+                                        Icon(painterResource(R.drawable.close), null)
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors =
+                                OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+
+                        HorizontalDivider()
+
+                        Text(
+                            text = stringResource(R.string.join_existing_room),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+
+                        OutlinedTextField(
+                            value = roomCodeInput,
+                            onValueChange = { roomCodeInput = it.uppercase().filter { c -> c.isLetterOrDigit() }.take(8) },
+                            label = { Text(stringResource(R.string.room_code)) },
+                            placeholder = { Text("ABCD1234") },
+                            supportingText = {
+                                Text(
+                                    text = "${roomCodeInput.length}/8",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    painterResource(R.drawable.token),
+                                    null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors =
+                                OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+
+                        // Status messages
+                        if (isJoiningRoom) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = waitingForApprovalText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                        }
+
+                        joinErrorMessage?.let { msg ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.1f),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier.padding(12.dp),
+                                ) {
+                                    Icon(
+                                        painterResource(R.drawable.error),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = msg,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Action buttons
+            item {
+                Spacer(modifier = Modifier.height(20.dp))
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        // Create Room button (left side)
+                        Button(
+                            onClick = {
+                                val username = usernameInput.takeIf { it.isNotBlank() } ?: savedUsername
+                                val finalUsername = username.trim()
+                                if (finalUsername.isNotBlank()) {
+                                    savedUsername = finalUsername
+                                    Toast.makeText(context, R.string.creating_room, Toast.LENGTH_SHORT).show()
+                                    isCreatingRoom = true
+                                    isJoiningRoom = false
+                                    joinErrorMessage = null
+                                    listenTogetherManager.connect()
+                                    listenTogetherManager.createRoom(finalUsername)
+                                } else {
+                                    Toast.makeText(context, R.string.error_username_empty, Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = (usernameInput.trim().isNotBlank() || savedUsername.isNotBlank()),
+                            colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                ),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.add),
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.create_room), fontWeight = FontWeight.SemiBold)
+                        }
+
+                        // Join Room button (right side - only visible when room code is complete)
+                        if (roomCodeInput.length == 8) {
+                            Button(
+                                onClick = {
+                                    val username = usernameInput.takeIf { it.isNotBlank() } ?: savedUsername
+                                    val finalUsername = username.trim()
+                                    if (finalUsername.isNotBlank()) {
+                                        savedUsername = finalUsername
+                                        Toast
+                                            .makeText(
+                                                context,
+                                                String.format(joiningRoomTemplate, roomCodeInput),
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        isJoiningRoom = true
+                                        isCreatingRoom = false
+                                        joinErrorMessage = null
+                                        listenTogetherManager.connect()
+                                        listenTogetherManager.joinRoom(roomCodeInput, finalUsername)
+                                    } else {
+                                        Toast.makeText(context, R.string.error_username_empty, Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = (usernameInput.trim().isNotBlank() || savedUsername.isNotBlank()),
+                                colors =
+                                    ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondary,
+                                    ),
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.login),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.join_room), fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            stringResource(R.string.cancel),
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+   .fillMaxWidth()
                             .padding(horizontal = 16.dp),
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
