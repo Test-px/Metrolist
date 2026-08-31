@@ -159,16 +159,9 @@ fun MiniPlayer(
     val canSkipNext by playerConnection.canSkipNext.collectAsStateWithLifecycle()
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsStateWithLifecycle()
 
-    // Metrolist's cast handling
-    val castHandler = remember(playerConnection) { 
-        runCatching { playerConnection.service.castConnectionHandler }.getOrNull() 
-    }
-    val isCasting by castHandler?.isCasting?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
-    
     val hapticFeedback = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
 
-    // Pixel Music base layout specs: 64.dp height, 10.dp start padding, 12.dp end padding
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -181,7 +174,6 @@ fun MiniPlayer(
             .padding(start = 10.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 1. Pixel Music Circular Album Art (44.dp)
         Box(contentAlignment = Alignment.Center) {
             AsyncImage(
                 model = mediaMetadata?.thumbnailUrl,
@@ -189,7 +181,7 @@ fun MiniPlayer(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(44.dp).clip(CircleShape)
             )
-            if (isCasting || playbackState == Player.STATE_BUFFERING) {
+            if (playbackState == Player.STATE_BUFFERING) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
                     strokeWidth = 2.dp,
@@ -200,7 +192,6 @@ fun MiniPlayer(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // 2. Pixel Music Typography (15.sp SemiBold Title, 13.sp Artist)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
@@ -215,7 +206,7 @@ fun MiniPlayer(
                 modifier = Modifier.basicMarquee()
             )
             Text(
-                text = mediaMetadata?.artists?.joinToArtistString { it.name } ?: "",
+                text = mediaMetadata?.artists?.joinToArtistString(conjunction = ", ") { it.name } ?: "",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                 maxLines = 1,
@@ -225,7 +216,6 @@ fun MiniPlayer(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // 3. Pixel Music Previous Button (36.dp Circle)
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -237,7 +227,7 @@ fun MiniPlayer(
                     indication = androidx.compose.material3.ripple(bounded = false)
                 ) {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    playerConnection.seekToPrevious()
+                    playerConnection.player.seekToPreviousMediaItem()
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -251,7 +241,6 @@ fun MiniPlayer(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // 4. Pixel Music Play/Pause Button (36.dp Circle, Primary Background)
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -262,7 +251,7 @@ fun MiniPlayer(
                     indication = androidx.compose.material3.ripple(bounded = false)
                 ) {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    playerConnection.togglePlayPause()
+                    playerConnection.player.togglePlayPause()
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -276,7 +265,6 @@ fun MiniPlayer(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // 5. Pixel Music Next Button (36.dp Circle)
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -288,7 +276,7 @@ fun MiniPlayer(
                     indication = androidx.compose.material3.ripple(bounded = false)
                 ) {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    playerConnection.seekToNext()
+                    playerConnection.player.seekToNextMediaItem()
                 },
             contentAlignment = Alignment.Center
         ) {
