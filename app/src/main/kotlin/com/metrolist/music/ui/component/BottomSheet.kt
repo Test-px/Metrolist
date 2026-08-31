@@ -136,7 +136,13 @@ fun BottomSheet(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        alpha = ((state.progress - 0.15f) * 4).coerceIn(0f, 1f)
+                        val fraction = state.progress
+                        // Pixel Music fade-in timing
+                        alpha = ((fraction - 0.15f) * 4).coerceIn(0f, 1f)
+                        // Pixel Music depth scale effect (1.0 -> 0.972)
+                        val scale = androidx.compose.ui.util.lerp(1f, 0.972f, fraction)
+                        scaleX = scale
+                        scaleY = scale
                     },
                 content = content
             )
@@ -147,7 +153,8 @@ fun BottomSheet(
                 modifier =
                 Modifier
                     .graphicsLayer {
-                        alpha = 1f - (state.progress * 4).coerceAtMost(1f)
+                        // Exact Pixel Music alpha fade: (1f - expansion * 2f)
+                        alpha = (1f - (state.progress * 2f)).coerceIn(0f, 1f)
                     }.clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
