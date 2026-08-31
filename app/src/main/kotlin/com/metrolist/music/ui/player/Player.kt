@@ -952,13 +952,69 @@ fun BottomSheetPlayer(
         }
 
         val playerProgressSection: @Composable () -> Unit = {
-            // Placeholder for Part 2: Wavy Slider
-            Spacer(Modifier.height(70.dp))
+            FullPlayerProgressSection(
+                position = sliderPosition ?: effectivePosition,
+                duration = duration,
+                onPositionChange = {
+                    if (!isListenTogetherGuest) sliderPosition = it
+                },
+                onPositionChangeFinished = {
+                    if (!isListenTogetherGuest) {
+                        sliderPosition?.let {
+                            if (isCasting) {
+                                castHandler?.seekTo(it)
+                                lastManualSeekTime = System.currentTimeMillis()
+                            } else {
+                                playerConnection.player.seekTo(it)
+                            }
+                            position = it
+                        }
+                        sliderPosition = null
+                    }
+                },
+                sliderStyle = sliderStyle,
+                squigglySlider = squigglySlider,
+                isPlaying = effectiveIsPlaying,
+                textColor = TextBackgroundColor,
+                sliderColors = com.metrolist.music.ui.theme.PlayerSliderColors.getSliderColors(textButtonColor, playerBackground, useDarkTheme)
+            )
         }
 
         val playerControlsSection: @Composable () -> Unit = {
-            // Placeholder for Part 2: Transport Controls & Toggles
-            Spacer(Modifier.height(182.dp))
+            val isEpisode = currentSong?.song?.isEpisode == true
+            val isFavorite = if (isEpisode) currentSong?.song?.inLibrary != null else currentSong?.song?.liked == true
+            
+            FullPlayerControlsSection(
+                context = context,
+                isPlaying = effectiveIsPlaying,
+                isMuted = isMuted,
+                isListenTogetherGuest = isListenTogetherGuest,
+                playbackState = playbackState,
+                canSkipPrevious = canSkipPrevious,
+                canSkipNext = canSkipNext,
+                repeatMode = repeatMode,
+                isFavorite = isFavorite,
+                onPrevious = { playerConnection.seekToPrevious() },
+                onPlayPause = {
+                    if (isListenTogetherGuest) {
+                        playerConnection.toggleMute()
+                    } else if (isCasting) {
+                        if (castIsPlaying) castHandler?.pause() else castHandler?.play()
+                    } else if (playbackState == Player.STATE_ENDED) {
+                        playerConnection.player.seekTo(0, 0)
+                        playerConnection.player.playWhenReady = true
+                    } else {
+                        playerConnection.player.togglePlayPause()
+                    }
+                },
+                onNext = { playerConnection.seekToNext() },
+                onRepeatToggle = { playerConnection.player.toggleRepeatMode() },
+                onFavoriteToggle = { playerConnection.toggleLike() },
+                textButtonColor = textButtonColor,
+                iconButtonColor = iconButtonColor,
+                sideButtonContainerColor = sideButtonContainerColor,
+                sideButtonContentColor = sideButtonContentColor
+            )
         }
 
         // --- PIXEL MUSIC LAYOUT GRID ---
@@ -1350,4 +1406,288 @@ private fun FullPlayerSongMetadataSection(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FullPlayerProgressSection(
+    position: Long,
+    duration: Long,
+    onPositionChange: (Long) -> Unit,
+    onPositionChangeFinished: () -> Unit,
+    sliderStyle: com.metrolist.music.constants.SliderStyle,
+    squigglySlider: Boolean,
+    isPlaying: Boolean,
+    textColor: Color,
+    sliderColors: androidx.compose.material3.SliderColors
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        // Slider matching Pixel Music padding
+        when (sliderStyle) {
+            com.metrolist.music.constants.SliderStyle.DEFAULT -> {
+                Slider(
+                    value = position.toFloat(),
+                    valueRange = 0f..(if (duration <= 0) 0f else duration.toFloat()),
+                    onValueChange = { onPositionChange(it.toLong()) },
+                    onValueChangeFinished = onPositionChangeFinished,
+                    colors = sliderColors,
+                    modifier = Modifier.padding(horizontal = 0.dp)
+                )
+            }
+            com.metrolist.music.constants.SliderStyle.WAVY -> {
+                if (squigglySlider) {
+                    com.metrolist.music.ui.component.SquigglySlider(
+                        value = position.toFloat(),
+                        valueRange = 0f..(if (duration <= 0) 0f else duration.toFloat()),
+                        onValueChange = { onPositionChange(it.toLong()) },
+                        onValueChangeFinished = onPositionChangeFinished,
+                        colors = sliderColors,
+                        isPlaying = isPlaying
+                    )
+                } else {
+                    com.metrolist.music.ui.component.WavySlider(
+                        value = position.toFloat(),
+                        valueRange = 0f..(if (duration <= 0) 0f else duration.toFloat()),
+                        onValueChange = { onPositionChange(it.toLong()) },
+                        onValueChangeFinished = onPositionChangeFinished,
+                        colors = sliderColors,
+                        isPlaying = isPlaying
+                    )
+                }
+            }
+            com.metrolist.music.constants.SliderStyle.SLIM -> {
+                Slider(
+                    value = position.toFloat(),
+                    valueRange = 0f..(if (duration <= 0) 0f else duration.toFloat()),
+                    onValueChange = { onPositionChange(it.toLong()) },
+                    onValueChangeFinished = onPositionChangeFinished,
+                    colors = sliderColors,
+                    thumb = { Spacer(modifier = Modifier.size(0.dp)) },
+                    track = { sliderState ->
+                        com.metrolist.music.ui.component.PlayerSliderTrack(
+                            sliderState = sliderState,
+                            colors = sliderColors
+                        )
+                    }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        // Time Labels exactly matched to Pixel Music's typography
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = com.metrolist.music.utils.makeTimeString(position),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                color = textColor
+            )
+            Text(
+                text = if (duration > 0) com.metrolist.music.utils.makeTimeString(duration) else "--:--",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                color = textColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun FullPlayerControlsSection(
+    context: android.content.Context,
+    isPlaying: Boolean,
+    isMuted: Boolean,
+    isListenTogetherGuest: Boolean,
+    playbackState: Int,
+    canSkipPrevious: Boolean,
+    canSkipNext: Boolean,
+    repeatMode: Int,
+    isFavorite: Boolean,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onRepeatToggle: () -> Unit,
+    onFavoriteToggle: () -> Unit,
+    textButtonColor: Color,
+    iconButtonColor: Color,
+    sideButtonContainerColor: Color,
+    sideButtonContentColor: Color
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // Pixel Music's squishy transport controls
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            val backInteractionSource = remember { MutableInteractionSource() }
+            val nextInteractionSource = remember { MutableInteractionSource() }
+            val playPauseInteractionSource = remember { MutableInteractionSource() }
+
+            val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
+            val isBackPressed by backInteractionSource.collectIsPressedAsState()
+            val isNextPressed by nextInteractionSource.collectIsPressedAsState()
+
+            val playPauseWeight by animateFloatAsState(
+                targetValue = if (isPlayPausePressed) 1.9f else if (isBackPressed || isNextPressed) 1.1f else 1.3f,
+                animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
+                label = "playPauseWeight"
+            )
+
+            val backButtonWeight by animateFloatAsState(
+                targetValue = if (isBackPressed) 0.65f else if (isPlayPausePressed) 0.35f else 0.45f,
+                animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
+                label = "backButtonWeight"
+            )
+
+            val nextButtonWeight by animateFloatAsState(
+                targetValue = if (isNextPressed) 0.65f else if (isPlayPausePressed) 0.35f else 0.45f,
+                animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
+                label = "nextButtonWeight"
+            )
+
+            androidx.compose.material3.FilledIconButton(
+                onClick = onPrevious,
+                enabled = canSkipPrevious && !isListenTogetherGuest,
+                shape = RoundedCornerShape(50),
+                interactionSource = backInteractionSource,
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                    containerColor = sideButtonContainerColor,
+                    contentColor = sideButtonContentColor,
+                ),
+                modifier = Modifier
+                    .height(68.dp)
+                    .weight(backButtonWeight)
+            ) {
+                Icon(painterResource(R.drawable.skip_previous), null, modifier = Modifier.size(32.dp))
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            androidx.compose.material3.FilledIconButton(
+                onClick = onPlayPause,
+                shape = RoundedCornerShape(50),
+                interactionSource = playPauseInteractionSource,
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                    containerColor = textButtonColor,
+                    contentColor = iconButtonColor,
+                ),
+                modifier = Modifier
+                    .height(68.dp)
+                    .weight(playPauseWeight)
+            ) {
+                Icon(
+                    painter = painterResource(
+                        if (isListenTogetherGuest) {
+                            if (isMuted) R.drawable.volume_off else R.drawable.volume_up
+                        } else if (playbackState == Player.STATE_ENDED) {
+                            R.drawable.replay
+                        } else {
+                            if (isPlaying) R.drawable.pause else R.drawable.play
+                        }
+                    ),
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            androidx.compose.material3.FilledIconButton(
+                onClick = onNext,
+                enabled = canSkipNext && !isListenTogetherGuest,
+                shape = RoundedCornerShape(50),
+                interactionSource = nextInteractionSource,
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                    containerColor = sideButtonContainerColor,
+                    contentColor = sideButtonContentColor,
+                ),
+                modifier = Modifier
+                    .height(68.dp)
+                    .weight(nextButtonWeight)
+            ) {
+                Icon(painterResource(R.drawable.skip_next), null, modifier = Modifier.size(32.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Pixel Music's Bottom Toggle Row
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(66.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                    shape = RoundedCornerShape(60.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val commonModifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+
+                // Shuffle (Handled via playlist options natively in Metrolist, so keeping as cosmetic fallback to preserve 3-button symmetry)
+                androidx.compose.material3.Surface(
+                    modifier = commonModifier,
+                    color = Color.Transparent,
+                    shape = RoundedCornerShape(60.dp),
+                    onClick = { Toast.makeText(context, "Shuffle controlled in queue", Toast.LENGTH_SHORT).show() }
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(painterResource(R.drawable.shuffle), null, tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+
+                // Repeat
+                val repeatActive = repeatMode != Player.REPEAT_MODE_OFF
+                androidx.compose.material3.Surface(
+                    modifier = commonModifier,
+                    color = if (repeatActive) MaterialTheme.colorScheme.secondary else Color.Transparent,
+                    contentColor = if (repeatActive) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onSurface,
+                    shape = RoundedCornerShape(60.dp),
+                    onClick = onRepeatToggle
+                ) {
+                    val repeatIcon = when (repeatMode) {
+                        Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
+                        Player.REPEAT_MODE_ALL -> R.drawable.repeat_on
+                        else -> R.drawable.repeat
+                    }
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(painterResource(repeatIcon), null)
+                    }
+                }
+
+                // Favorite
+                androidx.compose.material3.Surface(
+                    modifier = commonModifier,
+                    color = if (isFavorite) MaterialTheme.colorScheme.tertiary else Color.Transparent,
+                    contentColor = if (isFavorite) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurface,
+                    shape = RoundedCornerShape(60.dp),
+                    onClick = onFavoriteToggle
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(painterResource(if (isFavorite) R.drawable.favorite else R.drawable.favorite_border), null)
+                    }
+                }
+            }
+        }
+    }
+}
+
 
