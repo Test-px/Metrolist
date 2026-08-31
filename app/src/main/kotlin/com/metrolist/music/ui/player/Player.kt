@@ -958,7 +958,7 @@ fun BottomSheetPlayer(
 
         val playerProgressSection: @Composable () -> Unit = {
             FullPlayerProgressSection(
-                position = sliderPosition ?: effectivePosition,
+                position = sliderPosition ?: position,
                 duration = duration,
                 onPositionChange = {
                     if (!isListenTogetherGuest) sliderPosition = it
@@ -966,12 +966,7 @@ fun BottomSheetPlayer(
                 onPositionChangeFinished = {
                     if (!isListenTogetherGuest) {
                         sliderPosition?.let {
-                            if (isCasting) {
-                                castHandler?.seekTo(it)
-                                lastManualSeekTime = System.currentTimeMillis()
-                            } else {
-                                playerConnection.player.seekTo(it)
-                            }
+                            playerConnection.player.seekTo(it)
                             position = it
                         }
                         sliderPosition = null
@@ -979,7 +974,7 @@ fun BottomSheetPlayer(
                 },
                 sliderStyle = sliderStyle,
                 squigglySlider = squigglySlider,
-                isPlaying = effectiveIsPlaying,
+                isPlaying = isPlaying,
                 textColor = TextBackgroundColor,
                 sliderColors = com.metrolist.music.ui.theme.PlayerSliderColors.getSliderColors(textButtonColor, playerBackground, useDarkTheme)
             )
@@ -991,7 +986,7 @@ fun BottomSheetPlayer(
             
             FullPlayerControlsSection(
                 context = context,
-                isPlaying = effectiveIsPlaying,
+                isPlaying = isPlaying,
                 isMuted = isMuted,
                 isListenTogetherGuest = isListenTogetherGuest,
                 playbackState = playbackState,
@@ -999,12 +994,10 @@ fun BottomSheetPlayer(
                 canSkipNext = canSkipNext,
                 repeatMode = repeatMode,
                 isFavorite = isFavorite,
-                onPrevious = { playerConnection.seekToPrevious() },
+                onPrevious = { playerConnection.player.seekToPreviousMediaItem() },
                 onPlayPause = {
                     if (isListenTogetherGuest) {
                         playerConnection.toggleMute()
-                    } else if (isCasting) {
-                        if (castIsPlaying) castHandler?.pause() else castHandler?.play()
                     } else if (playbackState == Player.STATE_ENDED) {
                         playerConnection.player.seekTo(0, 0)
                         playerConnection.player.playWhenReady = true
@@ -1012,7 +1005,7 @@ fun BottomSheetPlayer(
                         playerConnection.player.togglePlayPause()
                     }
                 },
-                onNext = { playerConnection.seekToNext() },
+                onNext = { playerConnection.player.seekToNextMediaItem() },
                 onRepeatToggle = { playerConnection.player.toggleRepeatMode() },
                 onFavoriteToggle = { playerConnection.toggleLike() },
                 textButtonColor = textButtonColor,
@@ -1304,7 +1297,7 @@ private fun FullPlayerAlbumCoverSection(
         contentAlignment = Alignment.Center
     ) {
         AsyncImage(
-            model = mediaMetadata?.thumbnailUrl?.let { com.metrolist.music.ui.utils.resize(it, 1200, 1200) },
+            model = mediaMetadata?.thumbnailUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
