@@ -37,4 +37,14 @@ object ShapeCache {
 
     /** Fully smooth (pill) — 50dp, used for buttons and chips */
     val smoothPill = AbsoluteSmoothCornerShape(cornerRadius = 50.dp, smoothnessAsPercent = 60)
+
+    /**
+     * Squircles for grouped settings items (top item rounded top, bottom item rounded bottom, middle items 6dp).
+     */
+    fun settingsGroupShape(index: Int, total: Int): AbsoluteSmoothCornerShape = when {
+        total <= 1 -> smooth24
+        index == 0 -> AbsoluteSmoothCornerShape(24.dp, 60, 24.dp, 60, 6.dp, 60, 6.dp, 60)
+        index == total - 1 -> AbsoluteSmoothCornerShape(6.dp, 60, 6.dp, 60, 24.dp, 60, 24.dp, 60)
+        else -> AbsoluteSmoothCornerShape(6.dp, 60)
+    }
 }

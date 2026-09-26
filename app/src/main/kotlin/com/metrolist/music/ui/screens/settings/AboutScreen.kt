@@ -77,6 +77,7 @@ import com.metrolist.music.R
 import com.metrolist.music.playback.PlayerConnection
 import com.metrolist.music.playback.queues.YouTubeQueue
 import com.metrolist.music.ui.component.IconButton
+import com.metrolist.music.ui.theme.ShapeCache
 import com.metrolist.music.ui.component.Material3SettingsGroup
 import com.metrolist.music.ui.component.Material3SettingsItem
 import com.metrolist.music.ui.utils.backToMain
@@ -192,18 +193,21 @@ private fun DeveloperSocials(
     ) {
         FilledTonalButton(
             onClick = { uriHandler.openUri("https://metrolist.cc") },
+            shape = ShapeCache.smooth16,
             modifier = Modifier.weight(1f).height(48.dp)
         ) {
             Icon(painterResource(R.drawable.language), contentDescription = null)
         }
         FilledTonalButton(
             onClick = { uriHandler.openUri("https://github.com/mostafaalagamy") },
+            shape = ShapeCache.smooth16,
             modifier = Modifier.weight(1f).height(48.dp)
         ) {
             Icon(painterResource(R.drawable.github), contentDescription = null)
         }
         FilledTonalButton(
             onClick = { uriHandler.openUri("https://www.instagram.com/mostafaalagamy") },
+            shape = ShapeCache.smooth16,
             modifier = Modifier.weight(1f).height(48.dp)
         ) {
             Icon(painterResource(R.drawable.instagram), contentDescription = null)
@@ -243,7 +247,7 @@ fun AboutScreen(
 
         // App Header Section
         ElevatedCard(
-            shape = RoundedCornerShape(32.dp),
+            shape = ShapeCache.smooth32,
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -331,7 +335,7 @@ fun AboutScreen(
 
         // Lead Developer Hero Card
         ElevatedCard(
-            shape = RoundedCornerShape(32.dp),
+            shape = ShapeCache.smooth32,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -392,7 +396,7 @@ fun AboutScreen(
                 Button(
                     onClick = { uriHandler.openUri("https://buymeacoffee.com/mostafaalagamy") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = CircleShape,
+                    shape = ShapeCache.smoothPill,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary

@@ -37,6 +37,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import com.metrolist.music.ui.theme.ShapeCache
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -299,7 +301,7 @@ fun ThemeControls(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(24.dp),
+        shape = ShapeCache.smooth24,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
@@ -586,7 +588,7 @@ fun PaletteItem(
         label = "scale"
     )
     
-    val shape = RoundedCornerShape(cornerRadius)
+    val shape = AbsoluteSmoothCornerShape(cornerRadius = cornerRadius, smoothnessAsPercent = 60)
     val interactionSource = remember { MutableInteractionSource() }
     
     val paletteName = stringResource(palette.nameRes)
@@ -684,7 +686,7 @@ fun ThemeMockup(
             modifier = Modifier
                 .fillMaxSize()
                 .aspectRatio(9f / 18f),
-            shape = RoundedCornerShape(16.dp),
+            shape = ShapeCache.smooth16,
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface
             ),
