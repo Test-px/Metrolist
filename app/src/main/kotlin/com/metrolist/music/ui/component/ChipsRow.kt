@@ -54,6 +54,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.metrolist.music.R
 import com.metrolist.music.ui.screens.OptionStats
+import com.metrolist.music.ui.theme.ShapeCache
 
 @Composable
 fun <E> ChipsRow(
@@ -74,13 +75,15 @@ fun <E> ChipsRow(
 
         chips.forEach { (value, label) ->
             FilterChip(
-                label = { Text(label) },
+                label = { Text(label, fontWeight = if (currentValue == value) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal) },
                 selected = currentValue == value,
                 colors = FilterChipDefaults.filterChipColors(
                     containerColor = containerColor,
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 ),
                 onClick = { onValueUpdate(value) },
-                shape = RoundedCornerShape(16.dp),
+                shape = ShapeCache.smoothPill,
                 border = null
             )
 
