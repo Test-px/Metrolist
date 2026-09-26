@@ -1223,6 +1223,11 @@ class MainActivity : FragmentActivity() {
                                         slimNav = slimNav,
                                         onSearchLongClick = onSearchLongClick,
                                         onHomeLongHold = { showAccountDialog = true },
+                                        onSettingsClick = {
+                                            if (currentRoute != "settings") {
+                                                navController.navigate("settings")
+                                            }
+                                        },
                                         modifier =
                                             Modifier
                                                 .align(Alignment.BottomCenter)
