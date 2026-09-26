@@ -178,6 +178,8 @@ import com.metrolist.music.ui.menu.PlayerMenu
 import com.metrolist.music.ui.screens.settings.DarkMode
 import com.metrolist.music.ui.theme.PlayerColorExtractor
 import com.metrolist.music.ui.theme.PlayerSliderColors
+import com.metrolist.music.ui.theme.ShapeCache
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import com.metrolist.music.ui.utils.ShowMediaInfo
 import com.metrolist.music.ui.utils.ShowOffsetDialog
 import com.metrolist.music.utils.dataStore
@@ -937,8 +939,11 @@ fun BottomSheetPlayer(
     ) {
         val controlsContent: @Composable ColumnScope.(MediaMetadata) -> Unit = { mediaMetadata ->
             val playPauseRoundness by animateDpAsState(
-                targetValue = if (isPlaying) 24.dp else 36.dp,
-                animationSpec = tween(durationMillis = 90, easing = LinearEasing),
+                targetValue = if (isPlaying) 60.dp else 26.dp,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                ),
                 label = "playPauseRoundness",
             )
 
@@ -1595,7 +1600,7 @@ fun BottomSheetPlayer(
                             FilledIconButton(
                                 onClick = playerConnection::seekToPrevious,
                                 enabled = canSkipPrevious && !isListenTogetherGuest,
-                                shape = RoundedCornerShape(50),
+                                shape = ShapeCache.smoothPill,
                                 interactionSource = backInteractionSource,
                                 colors =
                                     IconButtonDefaults.filledIconButtonColors(
@@ -1635,7 +1640,7 @@ fun BottomSheetPlayer(
                                         playerConnection.togglePlayPause()
                                     }
                                 },
-                                shape = RoundedCornerShape(50),
+                                shape = AbsoluteSmoothCornerShape(cornerRadius = playPauseRoundness, smoothnessAsPercent = 60),
                                 interactionSource = playPauseInteractionSource,
                                 colors =
                                     IconButtonDefaults.filledIconButtonColors(
@@ -1687,7 +1692,7 @@ fun BottomSheetPlayer(
                             FilledIconButton(
                                 onClick = playerConnection::seekToNext,
                                 enabled = canSkipNext && !isListenTogetherGuest,
-                                shape = RoundedCornerShape(50),
+                                shape = ShapeCache.smoothPill,
                                 interactionSource = nextInteractionSource,
                                 colors =
                                     IconButtonDefaults.filledIconButtonColors(
@@ -1758,7 +1763,7 @@ fun BottomSheetPlayer(
                                 modifier =
                                     Modifier
                                         .size(72.dp)
-                                        .clip(RoundedCornerShape(playPauseRoundness))
+                                        .clip(AbsoluteSmoothCornerShape(cornerRadius = playPauseRoundness, smoothnessAsPercent = 60))
                                         .background(textButtonColor)
                                         .clickable {
                                             if (isListenTogetherGuest) {

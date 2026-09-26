@@ -8,6 +8,7 @@
 package com.metrolist.music.ui.player
 
 import android.content.res.Configuration
+import com.metrolist.music.ui.theme.ShapeCache
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -379,9 +380,9 @@ private fun NewMiniPlayer(
                     .then(if (isTabletLandscape) Modifier.width(500.dp).align(Alignment.Center) else Modifier.fillMaxWidth())
                     .height(64.dp)
                     .offset { IntOffset(offsetXAnimatable.value.roundToInt(), 0) }
-                    .clip(RoundedCornerShape(32.dp))
+                    .clip(ShapeCache.smooth32)
                     .background(color = backgroundColor)
-                    .border(1.dp, outlineColor.copy(alpha = 0.3f), RoundedCornerShape(32.dp))
+                    .border(1.dp, outlineColor.copy(alpha = 0.3f), ShapeCache.smooth32)
                     .clickable(
                         interactionSource = interactionSource,
                         indication = LocalIndication.current,
