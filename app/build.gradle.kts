@@ -290,6 +290,7 @@ dependencies {
     implementation(libs.material3)
     implementation(libs.palette)
     implementation(libs.materialKolor)
+    implementation("com.github.racra:smooth-corner-rect-android-compose:v1.0.0")
 
     implementation(libs.appcompat)
 
