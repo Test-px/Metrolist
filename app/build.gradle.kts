@@ -7,6 +7,14 @@ if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
 
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+val vzKeystoreFile = rootProject.file("vz-pixelmusic.jks")
+val vzKeystoreExists = keystorePropertiesFile.exists() && vzKeystoreFile.exists()
+
 val baseApplicationId = "com.metrolist.music"
 val applicationIdOverride = System.getenv("METROLIST_APPLICATION_ID")?.takeIf { it.isNotBlank() }
 val appNameOverride = System.getenv("METROLIST_APP_NAME")?.takeIf { it.isNotBlank() }
@@ -90,6 +98,14 @@ android {
     }
 
     signingConfigs {
+        if (vzKeystoreExists) {
+            create("vzRelease") {
+                storeFile = vzKeystoreFile
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
         create("persistentDebug") {
             storeFile = persistentDebugKeystoreFile
             storePassword = "android"
@@ -118,6 +134,9 @@ android {
 
     buildTypes {
         release {
+            if (vzKeystoreExists) {
+                signingConfig = signingConfigs.getByName("vzRelease")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             isCrunchPngs = false
